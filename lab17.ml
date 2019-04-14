@@ -8,7 +8,10 @@ This lab provides practice with object-oriented programming: the
 creation of classes, interfaces, inheritance, subtyping, and dynamic
 dispatch. *)
 
-   
+(*
+                               SOLUTION
+ *)
+
 (*====================================================================
 Part 1: Flatland
 
@@ -55,15 +58,24 @@ that accepts a shape_adt and returns a float representing the area of
 the shape.
 ....................................................................*)
 let area_adt (s : shape_adt) : float =
-  failwith "area_adt not implemented" ;;
+  match s with
+  | Square (_, s) -> s *. s
+  | Rect (_, w, h) -> w *. h
+  | Circle (_, r) -> let pi = 4. *. atan 1. in
+                     pi *. r *. r ;;
+
+(* As an aside, annoyingly, ocaml doesn't provide a constant for pi
+   until version 4.07.0 (where it appears as Float.pi). We could just
+   use 3.1416 and be done with it, but we use another workaround
+   here. *)
 
 (*....................................................................
 Exercise 1B: Write a function that, given a list of elements of type
 shape_adt, returns a list of areas corresponding to every shape.
 ....................................................................*)
-    
-let list_area_adt (lst : shape_adt list) : float list =
-  failwith "list_area_adt not implemented" ;;
+
+let list_area_adt : shape_adt list -> float list =
+  List.map area_adt ;;
 
 (*====================================================================
 Part 2: Interfaces, Classes, Objects
@@ -187,24 +199,31 @@ object (this)
   val mutable height = h
 
   method area : float =
-    failwith "rect area method not implemented"
+    width *. height
+
 
   method bounding_box : point * point =
-    failwith "rect bounding_box method not implemented"
+    let (x, y) = pos in
+    (pos, (x +. width, y +. height))
 
   method center : point =
-    failwith "rect center method not implemented"
+    let ((x1, y1), (x2, y2)) = this#bounding_box in
+    ((x1 +. x2) /. 2., (y1 +. y2) /. 2.)
+
 
   (* Destructively update pos to translate the shape by the values
      given in t. *)
-  method translate (t : point) : unit =
-    failwith "rect translate method not implemented"
+
+  method translate ((tx, ty) : point) : unit =
+    let (x, y) = pos in
+    pos <- (x +. tx, y +. ty)
+
 
   (* Scale the width and height of a rectangle from the lower-
      left corner. *)
   method scale (k : float) : unit =
-    failwith "rect scale method not implemented"
-
+    width <- width *. k;
+    height <- height *. k
 end ;;
 
 (*....................................................................
@@ -217,22 +236,24 @@ object
   val mutable center = c
   val mutable radius = r
 
-  method area : float =
-    failwith "circle area method not implemented"
+
+  method area : float = 3.14159 *. radius *. radius
 
   method bounding_box : point * point =
-    failwith "circle bounding_box method not implemented"
+    let (x, y) = center in
+    ((x -. radius, y -. radius), (x +. radius, y +. radius))
 
   method center : point =
-    failwith "circle center method not implemented"
+    center
 
   (* Move the center of the circle by the values tx and ty. *)
   method translate ((tx, ty) : point) : unit =
-    failwith "circle translate method not implemented"
+    let (x, y) = center in
+    center <- (x +. tx, y +. ty)
 
   (* Scale the radius by k without moving its center. *)
   method scale (k : float) : unit =
-    failwith "circle scale method not implemented"
+    radius <- radius *. k
 
 end ;;
 
@@ -243,24 +264,29 @@ rect! In this case, we've left its implementation entirely up to you.
 
 class square (p : point) (s : float) : shape =
 object(this)
-  method area : float =
-    failwith "square area method not implemented"
+
+  val mutable pos = p
+  val mutable side = s
+
+  method area : float = side *. side
 
   method bounding_box : point * point =
-    failwith "square bounding_box method not implemented"
+    let (x, y) = pos in
+    (pos, (x +. side, y +. side))
 
   method center : point =
-    failwith "square center method not implemented"
+    let ((x1, y1), (x2, y2)) = this#bounding_box in
+    ((x1 +. x2) /. 2., (y1 +. y2) /. 2.)
 
   (* Move the square by the values tx and ty. *)
   method translate ((tx, ty) : point) : unit =
-    failwith "square translate method not implemented"
+    let (x, y) = pos in
+    pos <- (x +. tx, y +. ty)
 
   (* Scale with width and height of a rectangle from the lower-
      left corner. *)
   method scale (k : float) : unit =
-    failwith "square scale method not implemented"
-
+    side <- side *. k
 end ;;
 
 (* Recall one of the original motivations for these exercises. We
@@ -272,7 +298,7 @@ Exercise 2D: Create a function called area that accepts a shape object
 and returns a float of the area for that shape.
 ....................................................................*)
 let area (s : shape) : float =
-  failwith "area not implemented" ;;
+  s#area ;;
 
 (*....................................................................
 Exercise 2E: Create a list of instantiated shapes called s_list.
@@ -281,13 +307,37 @@ The list should contain, in order:
 2. a circle at (0, -4) with radius 10
 3. a square at (-3, -2.5) with size 4.3
 ....................................................................*)
-   
-let s_list = [] ;;
+let s_list = [new rect (1., 1.) 4.0 5.0;
+              new circle (0., -4.) 10.;
+              new square (-3., -2.5) 4.3] ;;
+
+(* You might notice that the type reported for this list is "rect
+   list". Why is that, especially since not all the elements of the
+   list are rectangles, and all elements of a list are supposed to be
+   of the same type? The actual type associated with the elements of
+   the list is an object type, as described in Real World OCaml
+   <https://realworldocaml.org/v1/en/html/objects.html>, in
+   particular, something like:
+
+    < area : float;
+      bounding_box : point * point;
+      center : point;
+      scale : float -> unit;
+      translate : point -> unit >
+
+   The rect, circle, and square objects are all of this type. But the
+   ocaml REPL tries to be helpful in printing a more evocative name
+   for the type. By treating the class names as synonyms for the
+   object types, the type of the list can be interpreted as a rect
+   list or circle list or square list. The REPL uses the class of the
+   first element in the list as the type name to use, thus rect
+   list. Had the elements been in another order, the type might have
+   been abbreviated as circle list or square list. *)
 
 (* As you might recall, lists can only contain objects of the same
 type.  Why does the type system not show an error with your answer to
 2D?  What is the type of s_list? *)
-   
+
 (*====================================================================
 Part 3: Representation, Inheritance
 
@@ -332,10 +382,10 @@ Exercise 3A: Implement the square_rect class which inherits all of its
 methods from its parent.
 ....................................................................*)
 
-(* UNCOMMENT ME AND COMPLETE
-class square_rect (p : point) (s : float) : shape = ...
- *)
-
+class square_rect (p : point) (s : float) : shape =
+  object
+    inherit rect p s s
+  end ;;
 (*....................................................................
 Exercise 3B: Now, implement a square_center_scale class that inherits
 from square, but *overrides* the scale method so that the center
@@ -343,11 +393,44 @@ from square, but *overrides* the scale method so that the center
 place. Hint: First scale, then translate the center to its original
 position.
 ....................................................................*)
+class square_center_scale (p : point) (s : float) : shape =
+  object
+    inherit square_rect p s as super
 
-(* UNCOMMENT ME AND COMPLETE
-class square_center_scale (p: point) (s: float) : shape = ...
- *)
-     
+    method! scale (k : float) : unit =
+      let (x1, y1) = super#center in
+      (* scale *)
+      let _ = super#scale k in
+      let (x2, y2) = super#center in
+      (* translate back to center *)
+      super#translate ((x1 -. x2), (y1 -. y2))
+  end ;;
+
+(* Note the overriding of the scale method. We've marked the method
+   with "method!" instead of just "method". The extra "!" diacritic
+   tells OCaml that this method overrides an inherited method, so that
+   OCaml will generate a warning if there was no inherited method
+   being overridden. It's another example of getting the compiler to
+   help you find bugs. See
+   http://caml.inria.fr/pub/docs/manual-ocaml/extn.html#sec236 for
+   further information.
+
+   Some in lab were enticed to try to refer to the pos instance
+   variable inherited from the square_rect class. But that instance
+   variable is not available to be referred to -- either implicitly as
+   pos or explicitly as this#pos or super#pos -- because the class
+   type of the superclass square_rect, shape, does not reveal the pos
+   instance variable. Only the five methods specified in the shape
+   class type are available to use.
+
+   Were we not to specify that the class satisfy the shape class type,
+   it would have been possible to refer to directly to the inherited
+   pos instance variable. Though this might allow some brevity, it
+   would do so at the cost of eliminating the important information
+   hiding function of the class type, introducing a design flaw of the
+   overall system; classes should be explicit about their signatures
+   (via class types) to provide a strong abstraction barrier. *)
+
 (* Before we move on, consider: do you need to make any modifications
 to the area function you wrote in Exercise 2D to support these new
 classes? *)
@@ -412,12 +495,22 @@ Exercise 4A: Write a class, rect_quad, that represents a rectangle
 that implements a quad class type. Hint: By taking advantage of
 existing classes, you should only need to implement a single method.
 ....................................................................*)
-  
-(* UNCOMMENT ME
+
 class rect_quad (p : point) (w : float) (h : float) : quad =
   object
+    inherit rect p w h as super
+
+    method sides : float * float * float * float =
+      let ((x1, y1), (x2, y2)) = super#bounding_box in
+      let w = x2 -. x1 in
+      let h = y2 -. y1 in
+      (* our unit tests will accept the sides returned in any order *)
+      (w, h, w, h)
   end ;;
- *)
+
+(* Note that we've referred to super#bounding_box here. But because of
+   late binding, we could just as well have referred to
+   this#bounding_box, which ends up referring to the same method. *)
 
 (*....................................................................
 Exercise 4B: Complete a class, square_quad, that represents a square
@@ -425,11 +518,10 @@ that implements a quad class type. Hint: you shouldn't need to
 implement any methods!
 ....................................................................*)
 
-(* UNCOMMENT ME
 class square_quad (p : point) (s : float) : quad =
   object
+    inherit rect_quad p s s
   end ;;
-*)
 
 (* Remember Exercise 2D, in which you implemented an area function for
 shapes? Amazingly, even though we have continued to create new shapes,
@@ -442,19 +534,25 @@ pass it to the area function to find out its area and store the result
 in a variable "a".
 .....................................................................*)
 
-(* UNCOMMENT ME
-let sq : quad = ... ;;
+let sq : quad = new square_quad (3., 4.) 5. ;;
 
-let a = ... ;;
-*)
+let a = area (sq :> shape) ;;
+
+(* The natural inclination is to write
+
+    let a = area sq ;;
+
+   But this fails to type, since OCaml does not perform type inference
+   for object subtypes. Instead, we must be explicit about the subtype
+   to supertype (quad to shape) coercion by using the :> operator. *)
 
 (*....................................................................
 Exercise 4D: Write a function, area_list, that accepts a list of
 shapes and returns a list of areas.
 ....................................................................*)
-   
+
 let area_list : shape list -> float list =
-  failwith "area_list not implemented" ;;
+  List.map area ;;
 
 (* This works because of *dynamic dispatch*; we decide the code to run
    at run-time instead of compile-time. In other words, the shape#area
@@ -465,4 +563,3 @@ let area_list : shape list -> float list =
    the same code is run every time. Even though the match case may not
    be known, the branch is wholly contained within that static
    function. *)
-
